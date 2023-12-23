@@ -21,39 +21,40 @@ def get_file_name():
 
 
 def play_line(line: str, priority: int) -> tuple[int, str, str]:
-    try:
-        print("executing play_line")
-        output_file_name = get_file_name()
-        tts = TextToSpeechClient(output_file=output_file_name)
-        tts.save(line)
-        return priority, line, output_file_name
-    except Exception as e:
-        print(f"Exception in play_line: {e}")
-        raise
+    print("executing play_line")
+    output_file_name = get_file_name()
+    tts = TextToSpeechClient(output_file=output_file_name)
+    tts.save(line)
+    return priority, line, output_file_name
 
 
 def place_queue(res : tuple[int, str, str]):
     priority, line, output_file_name = res
-    queue.put((priority, line, output_file_name))
+    with queue.mutex:
+        if not queue.full():
+            queue.put((priority, line, output_file_name))
 
 
 def clear():
     os.system('cls')
 
 
-def play_audio(queue: PriorityQueue):
+def play_audio(queue: PriorityQueue, num_lines : int):
 
     audio_player = AudioPlayer()
-    while True:
+    i = 0
+    while i < num_lines:
         # print("busy waiting")
-        if not queue.empty():
-            _, sentence, audio_file = queue.get()
-            print(sentence)
-            audio_player.play(audio_file)
-            os.remove(audio_file)
-            clear()
-        else:
-            sleep(0.1)
+        if not queue.empty() and queue[0] == i:
+            with queue.mutex:
+                if not queue.full():
+                    _, sentence, audio_file = queue.get()
+                    print(sentence)
+                    audio_player.play(audio_file)
+                    os.remove(audio_file)
+                    clear()
+                    i += 1
+
 
 
 def main():
@@ -62,22 +63,27 @@ def main():
     # args = parser.parse_args()
     # path = args.path
     # path = '../inputs/lgtcm.epub'
-    output_text = '../output/rm.txt'
-    # EpubParser(path).write_to_file(output_text)
-    with open(output_text) as file_pointer:
+    output_path = '../output/texts/simple.txt'
+    # EpubParser(path).write_to_file(output_path)
+    with open(output_path) as file_pointer:
         print(f"cpu_count: {cpu_count()}")
-        with Pool(cpu_count() // 2) as thread_pool:
+        lines = file_pointer.readlines()
+        num_lines = len(lines)
+        file_pointer.seek(0)
+        promises = []
+        with Pool(cpu_count()) as thread_pool:
             for i, line in enumerate(file_pointer):
+                print(f'schedule thread {i}')
                 res = thread_pool.apply_async(play_line, args=(line, i), callback=place_queue)
-                try:
-                    res.get(timeout=5)  # get the result of play_line
-                except Exception as e:
-                    continue
-    audio_thread = Thread(target=play_audio, args=(queue,))
-    audio_thread.start()
-    thread_pool.close()
-    thread_pool.join()
-    # audio_thread.join()
+                promises.append(res)
+            audio_thread = Thread(target=play_audio, args=(queue,num_lines,))
+            audio_thread.start()
+            thread_pool.close()
+            print('closed thread pool')
+            print('main thread blocked until thread_pool finishes')
+            for promise in promises:
+                promise.get()
+            thread_pool.join()
 
 
 if __name__ == '__main__':
