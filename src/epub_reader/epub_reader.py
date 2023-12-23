@@ -18,9 +18,28 @@ class EpubParser:
     def get_text(self) -> str:
         return self.text
 
+    def chapter_replacement(self, texts: list[str]) -> list[str]:
+        def replace_with_newline(match):
+            matched_string = match.group(0)
+            # Check if the matched string ends with a newline
+            if not matched_string.endswith('\n'):
+                # Append a newline if it's not there
+                return matched_string + '\n'
+            return matched_string
+
+        # Regular expression pattern for matching "Chapter" or "chapter" followed by a word
+        pattern = r'\b(Chapter|chapter) \w+'
+
+        # Performing the conditional replacement
+        for i, text in enumerate(texts):
+            texts[i] = sub(pattern, replace_with_newline, text)
+
+        return texts
+
     def write_to_file(self, output_path: str):
         with open(output_path, "a") as file:
             sentences = self.to_sentences()
+            sentences = self.chapter_replacement(sentences)
             for sentence in sentences:
                 file.write(sentence + '.\n')
 
