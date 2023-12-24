@@ -1,15 +1,11 @@
 import argparse
 from os import system, path, remove
-from typing import Generator, Union, Any
 
-from pydub import AudioSegment as aus, AudioSegment
+from pydub import AudioSegment as aus
 from functools import reduce
-# from src.audio_player.audio_player import AudioPlayer
 from epub_reader.epub_reader import EpubParser
 from util.sequential_uuid import SequentialID
 from tts.tts_api import TextToSpeechClient
-
-# from src.tts.tts_api import TextToSpeechClient
 
 def clear():
     system('clear')
